@@ -22,7 +22,7 @@ In addition, __Flask__  environment with two routes was created:
 
 ### Extraction
 
-Data was extracted using Python (version 3.6) [Pandas](https://pandas.pydata.org/pandas-docs/stable/) module  in [mission_to_mars.ipynb](https://github.com/janelcv/mission_to_mars/blob/master/mission_to_mars.ipynb)  Jupyter Notebook. 
+Data was extracted using Python (version 3.6) [Pandas](https://pandas.pydata.org/pandas-docs/stable/) module  in [mission_to_mars.ipynb](https://github.com/janelcv/mission_to_mars/blob/master/mission_to_mars.ipynb)  Jupyter Notebook and stored as function in [scrape_mars.py](https://github.com/janelcv/mission_to_mars/blob/master/scrape_mars.py).
 
 >This Jupyter Notebook  was used to test every step of the code prior developing the web application. Code for scraping the website is located in [scrape_mars.py](https://github.com/janelcv/mission_to_mars/blob/master/scrape_mars.py).
 
@@ -79,7 +79,7 @@ featured_image_url = 'https://www.jpl.nasa.gov' + image
 
 ```
 
-3. [Mars Weather Twitter](https://twitter.com/marswxreport?lang=en). Mars Weather
+3. [Mars Weather Twitter](https://twitter.com/marswxreport?lang=en). Mars Weather 
 ```python
 
 url = 'https://twitter.com/marswxreport?lang=en'
@@ -92,8 +92,17 @@ if 'Sol' not in weather:
 weather = tweets.find('div', class_='js-tweet-text-container')
 mars_weather = weather.p.text
 ```
+To grab the specific tweet from Twitter webpage specific condition was included into  the code.
+
+```python
+for tweet in tweets:
+if 'Sol' not in weather:
+weather = tweets.find('div', class_='js-tweet-text-container')
+```
 
 4. [Space Facts](http://space-facts.com/mars/). Mars Facts.
+Function `pd.read_html()`  was used to extract the HTML table from the Webpage and convert it  into a list of dataframe objects. Furhter data was converted into a new HTML table.
+
 ```python
 
 mars_df = pd.read_html('http://space-facts.com/mars/',attrs={'id':'tablepress-mars'})
@@ -103,6 +112,7 @@ mars_df_html = mars_df.to_html(index = False)
 ```
 
 5. [Astrogeology Science Center](https://astrogeology.usgs.gov/search/results?q=hemisphere+enhanced&k1=target&v1=Mars). Mars Hemispheres.
+
 ```python
 
 url = 'https://astrogeology.usgs.gov/search/results?q=hemisphere+enhanced&k1=target&v1=Mars'
@@ -113,6 +123,10 @@ titles_list = soup.find_all('div', class_='description')
 for titles in titles_list:
 t = titles.h3.text
 title.append(t)
+```
+
+`urls_list` was created to store url for each image, beacause images for Mars Hemishepers were stored on different web pages. The image link from each url was scraped using `for loop`  and completed with funciton `re.compile('^http://')` . 
+```python
 
 urls_list=['https://astrogeology.usgs.gov/search/map/Mars/Viking/cerberus_enhanced',
 'https://astrogeology.usgs.gov/search/map/Mars/Viking/schiaparelli_enhanced',
@@ -126,13 +140,103 @@ soup = BeautifulSoup(browser.html, 'html.parser')
 image = soup.find('a', attrs={'target':'_blank', 'href': re.compile('^http://')})
 image_link = image.get('href')
 image_url.append(image_link)
+```
 
+Function `dict()`  was used to create a dictionary with keys and values for each MARS Hemisphere. Further they were stored inside the list of dictionaries `hemisphere_image_urls`. 
+
+```python
 hemisphere_image_urls=[]
 for i in range(len(title)):
 d = dict([('title', title[i]), ('img_url', image_url[i])])
 hemisphere_image_urls.append(d)
 ```
 
+Final step was  to add the final outputs of each web scrape to the dictionary `mars_data`. This step was done after each final output was obtained.
+
+```python
+mars_data = {
+'latest_title': article_title,
+'latest_paragraph': article_p,
+'image_url': featured_image_url,
+'weather': mars_weather,x
+'data_table': mars_df_html,
+'hemispheres': hemisphere_image_urls
+}
+```
+### HTML file 
+
+A templates folder was created to store the index.html file. Bootstap library was used In building [index.html](https://github.com/janelcv/mission_to_mars/blob/master/templates/index.html). Template folder would allow app.py to extract from the MongoDB database directly and load onto the webpage.
+
+A button on the `<div class="jumbotron text-center">`  was created to act like a link to app.py. Each time this button is clicked, the most updated information about Mars was placed in index.html.
 
 
+### MongoDB and FLASK
+The data stored in mars_data was loaded into MongoDB using the Flask app [app.py](https://github.com/janelcv/mission_to_mars/blob/master/app.py).
+
+```python
+from flask import Flask, render_template, redirect
+from datetime import datetime
+import scrape_mars
+import pymongo
+import json
+```
+```python
+conn = "mongodb://localhost:27017"
+client = pymongo.MongoClient(conn)
+```
+Using the flask two app routes were created:
+
+1. The first route called the `scrape()` function from `scrape_mars.py` , stored scraped information into MongoDB datebase and redirected to the `"/"`.
+
+```python
+app = Flask(__name__)
+
+@app.route("/scrape")
+def scrape_data():
+scraped_data = scrape_mars.scrape()
+mars_db = client.mars
+data = mars_db.mars_data
+data.delete_many({})
+data.insert(scraped_data)
+return redirect("/", code=302)
+
+if __name__ == "__main__":
+app.run(debug = True)
+```
+1. The second route used function called index that extracted information from the database. 
+```python
+@app.route("/")
+def index():
+mars_db = client.mars
+data = mars_db.mars_data.find_one()
+print(data)
+return render_template("index.html", data = data, current_time=datetime.utcnow())
+
+
+if __name__ == "__main__":
+app.run(debug=True)
+```
+
+### Final Output
+
+Before running app.py:
+>Use separate command line
+
+1. MongoDB was initialised in the command line.
+```html
+$ mongod
+```
+2. Python Environment was initialised in the command line
+
+```html
+$ source activate pythondata
+```
+As an output  `app.py` was run in Python Environment using command:
+
+```html
+$ Flask run
+```
+Google Chrome window will be automatically oppened after. In the second tab opening the route http://127.0.0.1:5000/ will automatically load index.html on the browser. Clicking the Scrape New Data button would rerun app.py and show the latest data.
+
+![FinalOutput](final_output.png)
 
