@@ -4,7 +4,7 @@
 
 Congratulations! You just won a ticket to Mars! 
 Your mission beggins today, but first, let's find out what to expect?!.
-![alt text](http://www.4usky.com/data/out/58/164512242-mars-wallpapers.jpg)
+![MarsImage](MarsImage.png)
 
 ## Methodology
 [mission_to_mars.ipynb]() Jupyter notebook was used for extracting data from various websites:
